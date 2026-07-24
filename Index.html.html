@@ -1,0 +1,1085 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>MacroFit — prototype</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<style>html,body{margin:0;padding:0;}</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel" data-presets="react">
+const { useState } = React;
+
+/* ------------------------------------------------------------------ */
+/*  MacroFit v3 — ingredient-level scaling                            */
+/*  Meals are built from ingredients (macros per 100g). The solver    */
+/*  adjusts gram amounts so the day lands on the coach's targets.     */
+/* ------------------------------------------------------------------ */
+
+const FONT_LINK = (
+  <link
+    href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
+);
+
+const C = {
+  paper: "#FAFAF7", card: "#FFFFFF", ink: "#1C2321", inkSoft: "#5A6660",
+  line: "#E4E6E0", green: "#2D5A3D", greenSoft: "#EAF2ED",
+  protein: "#2D5A3D", carbs: "#F2B705", fat: "#7A6FB0", danger: "#C0472E",
+};
+
+const DAYS = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+const kcalOf = (m) => Math.round(m.p * 4 + m.c * 4 + m.f * 9);
+
+/* -------- meals built from ingredients; macros are per 100g -------- */
+
+const ING = {
+  chicken:   { name: "Chicken breast", p: 31, c: 0,    f: 3.6 },
+  rice:      { name: "White rice (cooked)", p: 2.7, c: 28, f: 0.3 },
+  broccoli:  { name: "Broccoli", p: 2.8, c: 7, f: 0.4 },
+  oil:       { name: "Olive oil", p: 0, c: 0, f: 100 },
+  yogurt:    { name: "Greek yogurt (0%)", p: 10, c: 3.6, f: 0.4 },
+  berries:   { name: "Mixed berries", p: 0.7, c: 14, f: 0.3 },
+  granola:   { name: "Granola", p: 10, c: 60, f: 15 },
+  beef:      { name: "Lean ground beef (93/7)", p: 26, c: 0, f: 8 },
+  sweetpot:  { name: "Sweet potato", p: 1.6, c: 20, f: 0.1 },
+  eggwhite:  { name: "Egg whites", p: 11, c: 0.7, f: 0.2 },
+  toast:     { name: "Whole wheat bread", p: 13, c: 41, f: 4 },
+  salmon:    { name: "Salmon", p: 25, c: 0, f: 13 },
+  quinoa:    { name: "Quinoa (cooked)", p: 4.4, c: 21, f: 1.9 },
+  asparagus: { name: "Asparagus", p: 2.2, c: 3.9, f: 0.1 },
+  oats:      { name: "Oats (dry)", p: 13, c: 68, f: 7 },
+  whey:      { name: "Whey protein", p: 80, c: 8, f: 6 },
+  pb:        { name: "Peanut butter", p: 25, c: 20, f: 50 },
+  turkey:    { name: "Ground turkey", p: 27, c: 0, f: 8 },
+  chilibase: { name: "Beans & tomato base", p: 6, c: 15, f: 1 },
+  shrimp:    { name: "Shrimp", p: 24, c: 0, f: 0.3 },
+  cottage:   { name: "Cottage cheese", p: 11, c: 3.4, f: 2.3 },
+  pineapple: { name: "Pineapple", p: 0.5, c: 13, f: 0.1 },
+  banana:    { name: "Banana", p: 1.1, c: 23, f: 0.3 },
+  steak:     { name: "Sirloin steak", p: 29, c: 0, f: 10 },
+  potato:    { name: "Potatoes", p: 2, c: 17, f: 0.1 },
+  greenbean: { name: "Green beans", p: 1.8, c: 7, f: 0.2 },
+  tuna:      { name: "Tuna (canned)", p: 24, c: 0, f: 1 },
+  wrap:      { name: "Tortilla wrap", p: 9, c: 50, f: 9 },
+};
+
+// grams = base amount at 1x; the solver scales each ingredient 0.4x–2.5x
+const SEED_MEALS = [
+  { id: 1, name: "Chicken, rice & broccoli bowl", tag: "Lunch/Dinner",
+    parts: [["chicken", 150], ["rice", 200], ["broccoli", 100], ["oil", 8]] },
+  { id: 2, name: "Greek yogurt bowl", tag: "Breakfast/Snack",
+    parts: [["yogurt", 250], ["berries", 100], ["granola", 40]] },
+  { id: 3, name: "Beef & sweet potato skillet", tag: "Lunch/Dinner",
+    parts: [["beef", 140], ["sweetpot", 200], ["oil", 6]] },
+  { id: 4, name: "Egg white scramble + toast", tag: "Breakfast",
+    parts: [["eggwhite", 250], ["toast", 70], ["oil", 6]] },
+  { id: 5, name: "Salmon, quinoa & asparagus", tag: "Dinner",
+    parts: [["salmon", 140], ["quinoa", 160], ["asparagus", 120]] },
+  { id: 6, name: "Protein oats", tag: "Breakfast",
+    parts: [["oats", 60], ["whey", 30], ["pb", 16], ["banana", 80]] },
+  { id: 7, name: "Turkey chili", tag: "Lunch/Dinner",
+    parts: [["turkey", 130], ["chilibase", 220]] },
+  { id: 8, name: "Shrimp stir-fry + rice", tag: "Dinner",
+    parts: [["shrimp", 150], ["rice", 190], ["broccoli", 90], ["oil", 8]] },
+  { id: 9, name: "Cottage cheese + pineapple", tag: "Snack",
+    parts: [["cottage", 200], ["pineapple", 120]] },
+  { id: 10, name: "Protein shake + banana", tag: "Snack",
+    parts: [["whey", 35], ["banana", 110]] },
+  { id: 11, name: "Steak, potatoes & green beans", tag: "Dinner",
+    parts: [["steak", 150], ["potato", 220], ["greenbean", 100], ["oil", 6]] },
+  { id: 12, name: "Tuna wrap", tag: "Lunch",
+    parts: [["tuna", 120], ["wrap", 65], ["oil", 5]] },
+];
+
+const SEED_CLIENTS = [
+  { id: 1, name: "Jess M.", goal: "Cut", target: { p: 150, c: 160, f: 55 }, meals: 4 },
+  { id: 2, name: "Marcus T.", goal: "Lean bulk", target: { p: 190, c: 320, f: 80 }, meals: 5 },
+  { id: 3, name: "Priya K.", goal: "Recomp", target: { p: 140, c: 200, f: 60 }, meals: 4 },
+];
+
+/* ------- eating out / on-the-go (approx. published nutrition) ------ */
+
+const EATOUT = [
+  { id: "chipotle", name: "Chipotle", items: [
+    { name: "Chicken bowl (rice, black beans, fajita veg, salsa)", p: 51, c: 73, f: 14 },
+    { name: "Chicken salad bowl (no rice, guac)", p: 47, c: 26, f: 27 },
+    { name: "Steak bowl (rice, pinto beans, salsa)", p: 40, c: 74, f: 15 },
+    { name: "Sofritas bowl (rice, beans, veg)", p: 24, c: 82, f: 17 },
+    { name: "Side of chips", p: 7, c: 73, f: 25 },
+  ]},
+  { id: "chickfila", name: "Chick-fil-A", items: [
+    { name: "Grilled chicken sandwich", p: 28, c: 41, f: 6 },
+    { name: "12-ct grilled nuggets", p: 38, c: 2, f: 8 },
+    { name: "Market salad w/ grilled chicken", p: 28, c: 26, f: 14 },
+    { name: "Fruit cup", p: 1, c: 15, f: 0 },
+    { name: "Medium fries", p: 5, c: 45, f: 24 },
+  ]},
+  { id: "subway", name: "Subway", items: [
+    { name: "6\" turkey breast (veggies, no cheese)", p: 18, c: 40, f: 4 },
+    { name: "Footlong turkey breast", p: 36, c: 80, f: 8 },
+    { name: "6\" rotisserie chicken", p: 25, c: 39, f: 6 },
+    { name: "Chopped chicken salad", p: 24, c: 12, f: 5 },
+  ]},
+  { id: "starbucks", name: "Starbucks", items: [
+    { name: "Egg white & pepper bites", p: 20, c: 13, f: 13 },
+    { name: "Eggs & cheddar protein box", p: 23, c: 40, f: 19 },
+    { name: "Turkey provolone sandwich", p: 26, c: 46, f: 12 },
+    { name: "Plain oatmeal", p: 5, c: 28, f: 3 },
+  ]},
+  { id: "mcd", name: "McDonald's", items: [
+    { name: "Egg McMuffin", p: 17, c: 30, f: 13 },
+    { name: "McDouble", p: 22, c: 33, f: 20 },
+    { name: "4-pc McNuggets", p: 9, c: 10, f: 10 },
+    { name: "Apple slices", p: 0, c: 4, f: 0 },
+  ]},
+  { id: "gas", name: "Convenience store / on-the-go", items: [
+    { name: "Fairlife protein shake (26g)", p: 26, c: 5, f: 3 },
+    { name: "Beef jerky (1 oz)", p: 11, c: 3, f: 1 },
+    { name: "Greek yogurt cup", p: 15, c: 9, f: 0 },
+    { name: "String cheese", p: 7, c: 1, f: 6 },
+    { name: "Protein bar", p: 20, c: 23, f: 7 },
+    { name: "Tuna packet", p: 16, c: 0, f: 1 },
+    { name: "2 hard-boiled eggs", p: 12, c: 1, f: 10 },
+    { name: "Banana", p: 1, c: 27, f: 0 },
+    { name: "Almonds (1 oz)", p: 6, c: 6, f: 14 },
+  ]},
+];
+
+/* ---- eating-out matcher: fixed items, find best 1–3 item order ---- */
+
+function findOrders(items, remaining) {
+  const combos = [];
+  const n = items.length;
+  for (let i = 0; i < n; i++) {
+    combos.push([items[i]]);
+    for (let j = i; j < n; j++) {
+      combos.push([items[i], items[j]]);
+      for (let k = j; k < n; k++) combos.push([items[i], items[j], items[k]]);
+    }
+  }
+  const scored = combos.map((combo) => {
+    const t = combo.reduce((a, it) => ({ p: a.p + it.p, c: a.c + it.c, f: a.f + it.f }), { p: 0, c: 0, f: 0 });
+    // undershoot is ok-ish, overshoot is penalized harder
+    const dev = (v, tgt, w) => {
+      const d = (v - tgt) / Math.max(tgt, 1);
+      return (d > 0 ? d * 2.2 : -d) * w;
+    };
+    const score = dev(t.p, remaining.p, 1.4) + dev(t.c, remaining.c, 1) + dev(t.f, remaining.f, 1);
+    return { combo, totals: t, score };
+  });
+  scored.sort((a, b) => a.score - b.score);
+  // top 3 with distinct first items for variety
+  const out = [];
+  const seen = new Set();
+  for (const s of scored) {
+    const key = s.combo.map((x) => x.name).sort().join("|");
+    const lead = s.combo[0].name;
+    if (seen.has(key) || out.some((o) => o.combo[0].name === lead && out.length < 2)) continue;
+    seen.add(key);
+    out.push(s);
+    if (out.length === 3) break;
+  }
+  return out;
+}
+
+/* ------------------------- matching engine ------------------------- */
+/* Variables = grams of every ingredient in the day's meals.          */
+
+function macrosOfItems(items) {
+  return items.reduce((a, it) => {
+    it.parts.forEach((pt) => {
+      a.p += (pt.ing.p * pt.grams) / 100;
+      a.c += (pt.ing.c * pt.grams) / 100;
+      a.f += (pt.ing.f * pt.grams) / 100;
+    });
+    return a;
+  }, { p: 0, c: 0, f: 0 });
+}
+
+function mealMacros(it) {
+  return it.parts.reduce((a, pt) => ({
+    p: a.p + (pt.ing.p * pt.grams) / 100,
+    c: a.c + (pt.ing.c * pt.grams) / 100,
+    f: a.f + (pt.ing.f * pt.grams) / 100,
+  }), { p: 0, c: 0, f: 0 });
+}
+
+function scoreTotals(t, target) {
+  return (
+    (Math.abs(t.p - target.p) / Math.max(target.p, 1)) * 1.4 +
+    Math.abs(t.c - target.c) / Math.max(target.c, 1) +
+    Math.abs(t.f - target.f) / Math.max(target.f, 1)
+  );
+}
+
+function buildItems(meals) {
+  // expand a meal combo into solvable items with per-ingredient grams
+  return meals.map((m) => ({
+    meal: m,
+    parts: m.parts.map(([key, grams]) => ({ key, ing: ING[key], base: grams, grams })),
+  }));
+}
+
+function solveGrams(items, target, fixedMealIds = new Set()) {
+  // gradient-style nudging on every free ingredient
+  for (let pass = 0; pass < 220; pass++) {
+    const t = macrosOfItems(items);
+    const eP = (target.p - t.p) / Math.max(target.p, 1);
+    const eC = (target.c - t.c) / Math.max(target.c, 1);
+    const eF = (target.f - t.f) / Math.max(target.f, 1);
+    if (Math.abs(eP) + Math.abs(eC) + Math.abs(eF) < 0.01) break;
+
+    items.forEach((it) => {
+      if (fixedMealIds.has(it.meal.id)) return;
+      it.parts.forEach((pt) => {
+        // how much this ingredient moves each macro, per gram
+        const gP = pt.ing.p / 100, gC = pt.ing.c / 100, gF = pt.ing.f / 100;
+        const push = (eP * 1.4 * gP + eC * gC + eF * gF) * 14;
+        const next = pt.grams + push;
+        pt.grams = Math.min(pt.base * 2.5, Math.max(pt.base * 0.4, next));
+      });
+    });
+  }
+  // snap to 5g — weighable in real life
+  items.forEach((it) => {
+    if (fixedMealIds.has(it.meal.id)) return;
+    it.parts.forEach((pt) => (pt.grams = Math.round(pt.grams / 5) * 5));
+  });
+  return items;
+}
+
+function generateDayPlan(meals, target, mealCount, lockedItems = [], varietyPenalty = {}) {
+  const lockedIdSet = new Set(lockedItems.map((li) => li.meal.id));
+  const pool = meals.filter((m) => !lockedIdSet.has(m.id));
+  const need = mealCount - lockedItems.length;
+  let best = null;
+
+  for (let iter = 0; iter < 60; iter++) {
+    const shuffled = [...pool].sort(() => Math.random() - 0.5);
+    const picks = shuffled.slice(0, need);
+    if (picks.length < need) break;
+
+    // deep-copy locked items so their grams stay fixed
+    const items = [
+      ...lockedItems.map((li) => ({ meal: li.meal, parts: li.parts.map((pt) => ({ ...pt })) })),
+      ...buildItems(picks),
+    ];
+    solveGrams(items, target, lockedIdSet);
+
+    const totals = macrosOfItems(items);
+    const vp = items.reduce((a, it) => a + (varietyPenalty[it.meal.id] || 0) * 0.015, 0);
+    const s = scoreTotals(totals, target) + vp;
+    if (!best || s < best.score) {
+      best = {
+        score: s,
+        items,
+        totals: { p: Math.round(totals.p), c: Math.round(totals.c), f: Math.round(totals.f) },
+      };
+    }
+  }
+  return best;
+}
+
+function generateWeekPlan(meals, target, mealCount) {
+  const usage = {};
+  return DAYS.map(() => {
+    const day = generateDayPlan(meals, target, mealCount, [], usage);
+    day.items.forEach((it) => (usage[it.meal.id] = (usage[it.meal.id] || 0) + 1));
+    return day;
+  });
+}
+
+function aggregateWeekIngredients(week) {
+  const map = {};
+  week.forEach((day) =>
+    day.items.forEach((it) =>
+      it.parts.forEach((pt) => {
+        if (!map[pt.key]) map[pt.key] = { name: pt.ing.name, grams: 0 };
+        map[pt.key].grams += pt.grams;
+      })
+    )
+  );
+  return Object.values(map).sort((a, b) => b.grams - a.grams);
+}
+
+const fmtGrams = (g) => (g >= 1000 ? `${(g / 1000).toFixed(2).replace(/0+$/, "").replace(/\.$/, "")} kg` : `${Math.round(g)} g`);
+
+/* ----------------------------- UI bits ----------------------------- */
+
+function MacroBar({ label, value, target, color }) {
+  const pct = Math.min(115, (value / Math.max(target, 1)) * 100);
+  const off = value - target;
+  const within = Math.abs(off) / Math.max(target, 1) <= 0.05;
+  return (
+    <div style={{ marginBottom: 10 }}>
+      <div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, fontWeight: 600, color: C.ink, marginBottom: 4 }}>
+        <span>{label}</span>
+        <span style={{ fontVariantNumeric: "tabular-nums", color: within ? C.green : C.inkSoft }}>
+          {value}g / {target}g{" "}
+          <span style={{ color: within ? C.green : Math.abs(off) > target * 0.1 ? C.danger : C.inkSoft }}>
+            ({off >= 0 ? "+" : ""}{off}g)
+          </span>
+        </span>
+      </div>
+      <div style={{ height: 10, background: C.line, borderRadius: 6, overflow: "hidden", position: "relative" }}>
+        <div style={{ width: `${Math.min(pct, 100)}%`, height: "100%", background: color, borderRadius: 6, transition: "width .4s ease" }} />
+        {pct > 100 && (
+          <div style={{ position: "absolute", right: 0, top: 0, height: "100%", width: `${pct - 100}%`, background: C.danger, opacity: 0.7 }} />
+        )}
+      </div>
+    </div>
+  );
+}
+
+function Num({ value, onChange, w = 64 }) {
+  return (
+    <input
+      type="number"
+      value={value}
+      onChange={(e) => onChange(Number(e.target.value) || 0)}
+      style={{
+        width: w, padding: "6px 8px", border: `1px solid ${C.line}`, borderRadius: 8,
+        fontSize: 14, fontWeight: 600, color: C.ink, fontVariantNumeric: "tabular-nums",
+        background: C.card, textAlign: "center",
+      }}
+    />
+  );
+}
+
+/* ------------------------------- app ------------------------------- */
+
+function MacroFit() {
+  const [view, setView] = useState("coach");
+  const [clients, setClients] = useState(SEED_CLIENTS);
+  const [meals, setMeals] = useState(SEED_MEALS);
+  const [ingKeys, setIngKeys] = useState(Object.keys(ING));
+  const [showAddIng, setShowAddIng] = useState(false);
+  const [newIng, setNewIng] = useState({ name: "", p: 0, c: 0, f: 0 });
+  const [showAddMeal, setShowAddMeal] = useState(false);
+  const [mealDraft, setMealDraft] = useState({ name: "", tag: "Lunch/Dinner", parts: [] });
+  const [partSel, setPartSel] = useState({ key: "chicken", grams: 100 });
+  const [activeClientId, setActiveClientId] = useState(1);
+
+  const [mode, setMode] = useState("day");
+  const [venues, setVenues] = useState(EATOUT);
+  const [eatVenueId, setEatVenueId] = useState("chipotle");
+  const [remaining, setRemaining] = useState({ p: 45, c: 60, f: 20 });
+  const [orders, setOrders] = useState(null);
+  const [showAddVenue, setShowAddVenue] = useState(false);
+  const [newVenueName, setNewVenueName] = useState("");
+  const [showAddItem, setShowAddItem] = useState(false);
+  const [newItem, setNewItem] = useState({ name: "", p: 0, c: 0, f: 0 });
+  const [plan, setPlan] = useState(null);
+  const [weekPlan, setWeekPlan] = useState(null);
+  const [openDay, setOpenDay] = useState(0);
+  const [lockedIds, setLockedIds] = useState([]);
+  const [prepList, setPrepList] = useState([]);
+  const [showAddClient, setShowAddClient] = useState(false);
+  const [newClient, setNewClient] = useState({ name: "", goal: "Cut", p: 150, c: 200, f: 60, meals: 4 });
+
+  const client = clients.find((c) => c.id === activeClientId);
+  const resetPlans = () => { setPlan(null); setWeekPlan(null); setLockedIds([]); setPrepList([]); };
+
+  const updateTarget = (key, val) =>
+    setClients((cs) => cs.map((c) => (c.id === activeClientId ? { ...c, target: { ...c.target, [key]: val } } : c)));
+
+  const regenerateDay = () => {
+    const locked = plan ? plan.items.filter((it) => lockedIds.includes(it.meal.id)) : [];
+    setPlan(generateDayPlan(meals, client.target, client.meals, locked));
+  };
+
+  const regenerateWeek = () => {
+    setWeekPlan(generateWeekPlan(meals, client.target, client.meals));
+    setOpenDay(0);
+  };
+
+  const toggleLock = (id) =>
+    setLockedIds((ids) => (ids.includes(id) ? ids.filter((x) => x !== id) : [...ids, id]));
+
+  const sendDayToPrep = () => {
+    if (!plan) return;
+    setPrepList(plan.items.map((it) => ({
+      label: it.meal.name,
+      detail: it.parts.map((pt) => `${pt.ing.name} ${fmtGrams(pt.grams)}`).join(", "),
+      done: false,
+    })));
+  };
+
+  const sendWeekToPrep = () => {
+    if (!weekPlan) return;
+    setPrepList(aggregateWeekIngredients(weekPlan).map((row) => ({
+      label: row.name,
+      detail: `${fmtGrams(row.grams)} for the week`,
+      done: false,
+    })));
+  };
+
+  const weekAvg = weekPlan
+    ? {
+        p: Math.round(weekPlan.reduce((a, d) => a + d.totals.p, 0) / 7),
+        c: Math.round(weekPlan.reduce((a, d) => a + d.totals.c, 0) / 7),
+        f: Math.round(weekPlan.reduce((a, d) => a + d.totals.f, 0) / 7),
+      }
+    : null;
+
+  const tabBtn = (id, label) => (
+    <button
+      onClick={() => setView(id)}
+      style={{
+        flex: 1, padding: "10px 0", border: "none", cursor: "pointer",
+        background: view === id ? C.ink : "transparent",
+        color: view === id ? C.paper : C.inkSoft,
+        fontFamily: "'Barlow Semi Condensed', sans-serif",
+        fontWeight: 700, fontSize: 15, letterSpacing: "0.04em", textTransform: "uppercase",
+        borderRadius: 10, transition: "all .2s",
+      }}
+    >
+      {label}
+    </button>
+  );
+
+  const pill = (active) => ({
+    padding: "7px 16px", borderRadius: 999, cursor: "pointer", fontSize: 13, fontWeight: 700,
+    border: `1.5px solid ${active ? C.green : C.line}`,
+    background: active ? C.greenSoft : C.card,
+    color: active ? C.green : C.inkSoft,
+  });
+
+  const card = { background: C.card, border: `1px solid ${C.line}`, borderRadius: 14, padding: 16 };
+
+  const MealCard = ({ it, lockable }) => {
+    const locked = lockedIds.includes(it.meal.id);
+    const mm = mealMacros(it);
+    return (
+      <div style={{
+        padding: "10px 12px", borderRadius: 10,
+        border: `1.5px solid ${lockable && locked ? C.green : C.line}`,
+        background: lockable && locked ? C.greenSoft : C.paper,
+      }}>
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <div style={{ fontWeight: 600, fontSize: 14 }}>{it.meal.name}</div>
+          {lockable && (
+            <button
+              onClick={() => toggleLock(it.meal.id)}
+              title={locked ? "Unlock" : "Lock this meal"}
+              style={{ border: "none", background: "transparent", cursor: "pointer", fontSize: 17, opacity: locked ? 1 : 0.4 }}
+            >
+              {locked ? "🔒" : "🔓"}
+            </button>
+          )}
+        </div>
+        <div style={{ fontSize: 12, color: C.ink, margin: "4px 0 2px", lineHeight: 1.5 }}>
+          {it.parts.map((pt, i) => (
+            <span key={i}>
+              {pt.ing.name} <b style={{ fontVariantNumeric: "tabular-nums" }}>{fmtGrams(pt.grams)}</b>
+              {i < it.parts.length - 1 ? " · " : ""}
+            </span>
+          ))}
+        </div>
+        <div style={{ fontSize: 11, color: C.inkSoft, fontVariantNumeric: "tabular-nums" }}>
+          {Math.round(mm.p)}P / {Math.round(mm.c)}C / {Math.round(mm.f)}F · {kcalOf(mm)} kcal
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div style={{ minHeight: "100vh", background: C.paper, fontFamily: "'Inter', sans-serif", color: C.ink }}>
+      {FONT_LINK}
+      <div style={{ maxWidth: 680, margin: "0 auto", padding: "20px 16px 60px" }}>
+
+        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between", marginBottom: 16 }}>
+          <h1 style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 800, fontSize: 30, margin: 0, letterSpacing: "-0.01em" }}>
+            Macro<span style={{ color: C.green }}>Fit</span>
+          </h1>
+          <span style={{ fontSize: 12, color: C.inkSoft, fontWeight: 500 }}>coach demo · prototype</span>
+        </div>
+
+        <div style={{ display: "flex", gap: 6, background: C.card, border: `1px solid ${C.line}`, borderRadius: 12, padding: 5, marginBottom: 20 }}>
+          {tabBtn("coach", "Coach view")}
+          {tabBtn("client", "Client view")}
+        </div>
+
+        {/* ---------------- COACH VIEW ---------------- */}
+        {view === "coach" && (
+          <>
+            <div style={{ display: "flex", gap: 8, marginBottom: 16, flexWrap: "wrap" }}>
+              {clients.map((c) => (
+                <button key={c.id} onClick={() => { setActiveClientId(c.id); resetPlans(); }} style={pill(c.id === activeClientId)}>
+                  {c.name} · {c.goal}
+                </button>
+              ))}
+              <button
+                onClick={() => setShowAddClient((s) => !s)}
+                style={{ ...pill(showAddClient), borderStyle: "dashed" }}
+              >
+                {showAddClient ? "Cancel" : "+ New client"}
+              </button>
+            </div>
+
+            {showAddClient && (
+              <div style={{ ...card, marginBottom: 16, background: C.greenSoft, borderColor: C.green }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 16, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+                  New client
+                </div>
+                <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "flex-end" }}>
+                  <div style={{ flex: "1 1 140px" }}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Name</div>
+                    <input
+                      placeholder="Client name"
+                      value={newClient.name}
+                      onChange={(e) => setNewClient({ ...newClient, name: e.target.value })}
+                      style={{ width: "100%", boxSizing: "border-box", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 14 }}
+                    />
+                  </div>
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Goal</div>
+                    <select
+                      value={newClient.goal}
+                      onChange={(e) => setNewClient({ ...newClient, goal: e.target.value })}
+                      style={{ padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 14, background: C.card, fontWeight: 600 }}
+                    >
+                      {["Cut", "Lean bulk", "Recomp", "Maintain"].map((g) => <option key={g}>{g}</option>)}
+                    </select>
+                  </div>
+                  {[["Protein", "p", C.protein], ["Carbs", "c", C.carbs], ["Fat", "f", C.fat]].map(([label, key, color]) => (
+                    <div key={key}>
+                      <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                      <Num w={58} value={newClient[key]} onChange={(v) => setNewClient({ ...newClient, [key]: v })} />
+                    </div>
+                  ))}
+                  <div>
+                    <div style={{ fontSize: 11, fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Meals</div>
+                    <Num w={50} value={newClient.meals} onChange={(v) => setNewClient({ ...newClient, meals: Math.min(6, Math.max(2, v)) })} />
+                  </div>
+                  <button
+                    onClick={() => {
+                      if (!newClient.name.trim()) return;
+                      const id = Date.now();
+                      setClients((cs) => [...cs, {
+                        id, name: newClient.name.trim(), goal: newClient.goal,
+                        target: { p: newClient.p, c: newClient.c, f: newClient.f },
+                        meals: newClient.meals,
+                      }]);
+                      setActiveClientId(id);
+                      resetPlans();
+                      setShowAddClient(false);
+                      setNewClient({ name: "", goal: "Cut", p: 150, c: 200, f: 60, meals: 4 });
+                    }}
+                    style={{ border: "none", background: C.green, color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 14, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Add client
+                  </button>
+                </div>
+                <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 8 }}>
+                  ≈ {Math.round(newClient.p * 4 + newClient.c * 4 + newClient.f * 9)} kcal/day
+                </div>
+              </div>
+            )}
+
+            <div style={{ ...card, marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 12 }}>
+                Daily targets — {client.name}
+              </div>
+              <div style={{ display: "flex", gap: 14, flexWrap: "wrap", alignItems: "flex-end" }}>
+                {[["Protein (g)", "p", C.protein], ["Carbs (g)", "c", C.carbs], ["Fat (g)", "f", C.fat]].map(([label, key, color]) => (
+                  <div key={key}>
+                    <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                    <Num value={client.target[key]} onChange={(v) => updateTarget(key, v)} />
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: 11, fontWeight: 700, color: C.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>Meals/day</div>
+                  <Num value={client.meals} w={56} onChange={(v) =>
+                    setClients((cs) => cs.map((c) => (c.id === activeClientId ? { ...c, meals: Math.min(6, Math.max(2, v)) } : c)))
+                  } />
+                </div>
+                <div style={{ marginLeft: "auto", textAlign: "right" }}>
+                  <div style={{ fontSize: 11, color: C.inkSoft, fontWeight: 600 }}>≈ calories</div>
+                  <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 800, fontSize: 24, fontVariantNumeric: "tabular-nums" }}>
+                    {kcalOf(client.target)}
+                  </div>
+                </div>
+              </div>
+              <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 10 }}>
+                Change these numbers, then generate in Client view — ingredient amounts rescale to fit.
+              </div>
+            </div>
+
+            <div style={card}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10, flexWrap: "wrap", gap: 8 }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em" }}>
+                  Meal library ({meals.length})
+                </div>
+                <div style={{ display: "flex", gap: 6 }}>
+                  <button
+                    onClick={() => { setShowAddIng((s) => !s); setShowAddMeal(false); }}
+                    style={{ border: `1.5px solid ${C.green}`, background: showAddIng ? C.green : "transparent", color: showAddIng ? "#fff" : C.green, borderRadius: 8, padding: "6px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    + Ingredient
+                  </button>
+                  <button
+                    onClick={() => { setShowAddMeal((s) => !s); setShowAddIng(false); }}
+                    style={{ border: "none", background: C.green, color: "#fff", borderRadius: 8, padding: "6px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    + Meal
+                  </button>
+                </div>
+              </div>
+
+              {showAddIng && (
+                <div style={{ background: C.greenSoft, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>New ingredient — macros per 100g</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                    <input
+                      placeholder="Ingredient name"
+                      value={newIng.name}
+                      onChange={(e) => setNewIng({ ...newIng, name: e.target.value })}
+                      style={{ flex: "1 1 150px", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }}
+                    />
+                    {[["Protein", "p"], ["Carbs", "c"], ["Fat", "f"]].map(([label, k]) => (
+                      <div key={k}>
+                        <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.inkSoft }}>{label}/100g</div>
+                        <Num w={56} value={newIng[k]} onChange={(v) => setNewIng({ ...newIng, [k]: v })} />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => {
+                        if (!newIng.name.trim()) return;
+                        const key = "custom_" + Date.now();
+                        ING[key] = { name: newIng.name.trim(), p: newIng.p, c: newIng.c, f: newIng.f };
+                        setIngKeys((ks) => [...ks, key]);
+                        setPartSel((ps) => ({ ...ps, key }));
+                        setNewIng({ name: "", p: 0, c: 0, f: 0 });
+                        setShowAddIng(false);
+                        setShowAddMeal(true); // flow straight into building a meal with it
+                      }}
+                      style={{ border: "none", background: C.ink, color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Save ingredient
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {showAddMeal && (
+                <div style={{ background: C.greenSoft, borderRadius: 10, padding: 12, marginBottom: 12 }}>
+                  <div style={{ fontSize: 12, fontWeight: 700, marginBottom: 8 }}>New meal — build it from ingredients</div>
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 10 }}>
+                    <input
+                      placeholder="Meal name"
+                      value={mealDraft.name}
+                      onChange={(e) => setMealDraft({ ...mealDraft, name: e.target.value })}
+                      style={{ flex: "1 1 150px", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }}
+                    />
+                    <select
+                      value={mealDraft.tag}
+                      onChange={(e) => setMealDraft({ ...mealDraft, tag: e.target.value })}
+                      style={{ padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, background: C.card, fontWeight: 600 }}
+                    >
+                      {["Breakfast", "Lunch", "Dinner", "Lunch/Dinner", "Snack"].map((t) => <option key={t}>{t}</option>)}
+                    </select>
+                  </div>
+
+                  <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 8 }}>
+                    <select
+                      value={partSel.key}
+                      onChange={(e) => setPartSel({ ...partSel, key: e.target.value })}
+                      style={{ flex: "1 1 150px", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13, background: C.card }}
+                    >
+                      {ingKeys.map((k) => (
+                        <option key={k} value={k}>{ING[k].name} ({ING[k].p}P/{ING[k].c}C/{ING[k].f}F per 100g)</option>
+                      ))}
+                    </select>
+                    <div>
+                      <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.inkSoft }}>Grams</div>
+                      <Num w={64} value={partSel.grams} onChange={(v) => setPartSel({ ...partSel, grams: v })} />
+                    </div>
+                    <button
+                      onClick={() => {
+                        if (partSel.grams <= 0) return;
+                        setMealDraft((d) => ({ ...d, parts: [...d.parts, [partSel.key, partSel.grams]] }));
+                      }}
+                      style={{ border: `1.5px solid ${C.ink}`, background: "transparent", color: C.ink, borderRadius: 8, padding: "7px 12px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Add to meal
+                    </button>
+                  </div>
+
+                  {mealDraft.parts.length > 0 && (() => {
+                    const mm = mealMacros(buildItems([{ id: 0, name: "", tag: "", parts: mealDraft.parts }])[0]);
+                    return (
+                      <div style={{ fontSize: 12, marginBottom: 8 }}>
+                        {mealDraft.parts.map(([k, g], i) => (
+                          <span key={i} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: C.card, border: `1px solid ${C.line}`, borderRadius: 999, padding: "3px 8px", margin: "0 6px 6px 0" }}>
+                            {ING[k].name} {g}g
+                            <button
+                              onClick={() => setMealDraft((d) => ({ ...d, parts: d.parts.filter((_, j) => j !== i) }))}
+                              style={{ border: "none", background: "transparent", cursor: "pointer", color: C.danger, fontWeight: 700 }}
+                            >
+                              ×
+                            </button>
+                          </span>
+                        ))}
+                        <div style={{ color: C.inkSoft, fontVariantNumeric: "tabular-nums" }}>
+                          Base: {Math.round(mm.p)}P / {Math.round(mm.c)}C / {Math.round(mm.f)}F · {kcalOf(mm)} kcal
+                        </div>
+                      </div>
+                    );
+                  })()}
+
+                  <button
+                    onClick={() => {
+                      if (!mealDraft.name.trim() || mealDraft.parts.length === 0) return;
+                      setMeals((ms) => [...ms, { id: Date.now(), name: mealDraft.name.trim(), tag: mealDraft.tag, parts: mealDraft.parts }]);
+                      setMealDraft({ name: "", tag: "Lunch/Dinner", parts: [] });
+                      setShowAddMeal(false);
+                    }}
+                    style={{ border: "none", background: C.ink, color: "#fff", borderRadius: 8, padding: "9px 16px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                  >
+                    Save meal to library
+                  </button>
+                </div>
+              )}
+              <div style={{ display: "grid", gap: 6 }}>
+                {meals.map((m) => {
+                  const mm = mealMacros(buildItems([m])[0]);
+                  return (
+                    <div key={m.id} style={{ padding: "8px 10px", borderRadius: 8, background: C.paper, fontSize: 13 }}>
+                      <div style={{ display: "flex", justifyContent: "space-between" }}>
+                        <span style={{ fontWeight: 600 }}>{m.name}</span>
+                        <span style={{ fontVariantNumeric: "tabular-nums", color: C.inkSoft, fontSize: 12, whiteSpace: "nowrap" }}>
+                          base: {Math.round(mm.p)}P / {Math.round(mm.c)}C / {Math.round(mm.f)}F
+                        </span>
+                      </div>
+                      <div style={{ fontSize: 11, color: C.inkSoft, marginTop: 2 }}>
+                        {m.parts.map(([k, g]) => `${ING[k].name} ${g}g`).join(" · ")}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </>
+        )}
+
+        {/* ---------------- CLIENT VIEW ---------------- */}
+        {view === "client" && (
+          <>
+            <div style={{ ...card, marginBottom: 16 }}>
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 4 }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 800, fontSize: 22 }}>
+                  Hey {client.name.split(" ")[0]} 👋
+                </div>
+                <span style={{ fontSize: 12, color: C.inkSoft, fontWeight: 600 }}>{client.goal} · {kcalOf(client.target)} kcal/day</span>
+              </div>
+
+              <div style={{ display: "flex", gap: 8, margin: "10px 0 14px", flexWrap: "wrap" }}>
+                <button style={pill(mode === "day")} onClick={() => setMode("day")}>Today</button>
+                <button style={pill(mode === "week")} onClick={() => setMode("week")}>Full week</button>
+                <button style={pill(mode === "eatout")} onClick={() => setMode("eatout")}>Eating out</button>
+              </div>
+
+              {mode === "eatout" && (
+                <>
+                  <div style={{ fontSize: 13, color: C.inkSoft, marginBottom: 10 }}>
+                    Out and about? Tell me where you are and what you have left today.
+                  </div>
+                  <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                    {venues.map((v) => (
+                      <button key={v.id} onClick={() => { setEatVenueId(v.id); setOrders(null); setShowAddItem(false); }} style={{ ...pill(eatVenueId === v.id), padding: "6px 12px" }}>
+                        {v.name}
+                      </button>
+                    ))}
+                    <button
+                      onClick={() => { setShowAddVenue((s) => !s); setShowAddItem(false); }}
+                      style={{ ...pill(showAddVenue), padding: "6px 12px", borderStyle: "dashed" }}
+                    >
+                      {showAddVenue ? "Cancel" : "+ Add place"}
+                    </button>
+                  </div>
+
+                  {showAddVenue && (
+                    <div style={{ background: C.greenSoft, borderRadius: 10, padding: 12, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap" }}>
+                      <input
+                        placeholder="Place name (e.g. Panera, local deli)"
+                        value={newVenueName}
+                        onChange={(e) => setNewVenueName(e.target.value)}
+                        style={{ flex: "1 1 180px", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }}
+                      />
+                      <button
+                        onClick={() => {
+                          if (!newVenueName.trim()) return;
+                          const id = "venue_" + Date.now();
+                          setVenues((vs) => [...vs, { id, name: newVenueName.trim(), items: [] }]);
+                          setEatVenueId(id);
+                          setNewVenueName("");
+                          setShowAddVenue(false);
+                          setShowAddItem(true); // go straight to adding its first item
+                          setOrders(null);
+                        }}
+                        style={{ border: "none", background: C.green, color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                      >
+                        Save place
+                      </button>
+                    </div>
+                  )}
+
+                  {(() => {
+                    const venue = venues.find((v) => v.id === eatVenueId);
+                    return (
+                      <>
+                        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
+                          <div style={{ fontSize: 12, fontWeight: 700, color: C.inkSoft }}>
+                            {venue.name}: {venue.items.length} option{venue.items.length === 1 ? "" : "s"}
+                          </div>
+                          <button
+                            onClick={() => setShowAddItem((s) => !s)}
+                            style={{ border: `1.5px solid ${C.green}`, background: showAddItem ? C.green : "transparent", color: showAddItem ? "#fff" : C.green, borderRadius: 8, padding: "5px 10px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                          >
+                            {showAddItem ? "Close" : "+ Add option"}
+                          </button>
+                        </div>
+
+                        {showAddItem && (
+                          <div style={{ background: C.greenSoft, borderRadius: 10, padding: 12, marginBottom: 12, display: "flex", gap: 8, flexWrap: "wrap", alignItems: "flex-end" }}>
+                            <input
+                              placeholder="Menu item (e.g. Grilled chicken wrap)"
+                              value={newItem.name}
+                              onChange={(e) => setNewItem({ ...newItem, name: e.target.value })}
+                              style={{ flex: "1 1 170px", padding: "7px 10px", border: `1px solid ${C.line}`, borderRadius: 8, fontSize: 13 }}
+                            />
+                            {[["Protein", "p"], ["Carbs", "c"], ["Fat", "f"]].map(([label, k]) => (
+                              <div key={k}>
+                                <div style={{ fontSize: 10, fontWeight: 700, textTransform: "uppercase", color: C.inkSoft }}>{label} (g)</div>
+                                <Num w={54} value={newItem[k]} onChange={(v) => setNewItem({ ...newItem, [k]: v })} />
+                              </div>
+                            ))}
+                            <button
+                              onClick={() => {
+                                if (!newItem.name.trim()) return;
+                                setVenues((vs) => vs.map((v) => v.id === eatVenueId
+                                  ? { ...v, items: [...v.items, { name: newItem.name.trim(), p: newItem.p, c: newItem.c, f: newItem.f }] }
+                                  : v));
+                                setNewItem({ name: "", p: 0, c: 0, f: 0 });
+                                setOrders(null);
+                              }}
+                              style={{ border: "none", background: C.ink, color: "#fff", borderRadius: 8, padding: "8px 14px", fontSize: 13, fontWeight: 700, cursor: "pointer" }}
+                            >
+                              Save option
+                            </button>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
+
+                  <div style={{ display: "flex", gap: 12, flexWrap: "wrap", alignItems: "flex-end", marginBottom: 12 }}>
+                    {[["Protein left", "p", C.protein], ["Carbs left", "c", C.carbs], ["Fat left", "f", C.fat]].map(([label, key, color]) => (
+                      <div key={key}>
+                        <div style={{ fontSize: 11, fontWeight: 700, color, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>{label}</div>
+                        <Num w={58} value={remaining[key]} onChange={(v) => setRemaining({ ...remaining, [key]: v })} />
+                      </div>
+                    ))}
+                    <button
+                      onClick={() => setRemaining({ ...client.target })}
+                      style={{ border: `1.5px solid ${C.line}`, background: "transparent", color: C.inkSoft, borderRadius: 8, padding: "8px 12px", fontSize: 12, fontWeight: 700, cursor: "pointer" }}
+                    >
+                      Use full day
+                    </button>
+                  </div>
+                  <button
+                    onClick={() => {
+                      const venue = venues.find((v) => v.id === eatVenueId);
+                      if (venue.items.length === 0) return;
+                      setOrders(findOrders(venue.items, remaining));
+                    }}
+                    style={{
+                      width: "100%", padding: "12px 0", border: "none", borderRadius: 10, cursor: "pointer",
+                      background: C.green, color: "#fff",
+                      fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", textTransform: "uppercase",
+                    }}
+                  >
+                    Find my order
+                  </button>
+                </>
+              )}
+
+              {mode === "day" && (
+                <>
+                  <MacroBar label="Protein" value={plan ? plan.totals.p : 0} target={client.target.p} color={C.protein} />
+                  <MacroBar label="Carbs" value={plan ? plan.totals.c : 0} target={client.target.c} color={C.carbs} />
+                  <MacroBar label="Fat" value={plan ? plan.totals.f : 0} target={client.target.f} color={C.fat} />
+                  <button
+                    onClick={regenerateDay}
+                    style={{
+                      width: "100%", marginTop: 8, padding: "12px 0", border: "none", borderRadius: 10, cursor: "pointer",
+                      background: C.green, color: "#fff",
+                      fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", textTransform: "uppercase",
+                    }}
+                  >
+                    {plan ? "Shuffle unlocked meals" : "Generate my day"}
+                  </button>
+                </>
+              )}
+
+              {mode === "week" && (
+                <>
+                  <MacroBar label="Protein (daily avg)" value={weekAvg ? weekAvg.p : 0} target={client.target.p} color={C.protein} />
+                  <MacroBar label="Carbs (daily avg)" value={weekAvg ? weekAvg.c : 0} target={client.target.c} color={C.carbs} />
+                  <MacroBar label="Fat (daily avg)" value={weekAvg ? weekAvg.f : 0} target={client.target.f} color={C.fat} />
+                  <button
+                    onClick={regenerateWeek}
+                    style={{
+                      width: "100%", marginTop: 8, padding: "12px 0", border: "none", borderRadius: 10, cursor: "pointer",
+                      background: C.green, color: "#fff",
+                      fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 16, letterSpacing: "0.05em", textTransform: "uppercase",
+                    }}
+                  >
+                    {weekPlan ? "Regenerate week" : "Generate my week"}
+                  </button>
+                </>
+              )}
+            </div>
+
+            {mode === "day" && plan && (
+              <div style={{ ...card, marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                  Today's plan
+                </div>
+                <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 12 }}>
+                  Amounts are scaled to your targets. Lock what you like, shuffle the rest.
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {plan.items.map((it, i) => <MealCard key={i} it={it} lockable />)}
+                </div>
+                <button
+                  onClick={sendDayToPrep}
+                  style={{
+                    width: "100%", marginTop: 12, padding: "11px 0", borderRadius: 10, cursor: "pointer",
+                    border: `1.5px solid ${C.ink}`, background: "transparent", color: C.ink,
+                    fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.05em", textTransform: "uppercase",
+                  }}
+                >
+                  Send to prep list
+                </button>
+              </div>
+            )}
+
+            {mode === "week" && weekPlan && (
+              <div style={{ ...card, marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 10 }}>
+                  This week
+                </div>
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap", marginBottom: 12 }}>
+                  {DAYS.map((d, i) => (
+                    <button key={d} onClick={() => setOpenDay(i)} style={{ ...pill(openDay === i), padding: "6px 10px" }}>
+                      {d}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 8, fontVariantNumeric: "tabular-nums" }}>
+                  {DAYS[openDay]}: {weekPlan[openDay].totals.p}P / {weekPlan[openDay].totals.c}C / {weekPlan[openDay].totals.f}F · {kcalOf(weekPlan[openDay].totals)} kcal
+                </div>
+                <div style={{ display: "grid", gap: 8 }}>
+                  {weekPlan[openDay].items.map((it, i) => <MealCard key={i} it={it} lockable={false} />)}
+                </div>
+                <button
+                  onClick={sendWeekToPrep}
+                  style={{
+                    width: "100%", marginTop: 12, padding: "11px 0", borderRadius: 10, cursor: "pointer",
+                    border: `1.5px solid ${C.ink}`, background: "transparent", color: C.ink,
+                    fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 15, letterSpacing: "0.05em", textTransform: "uppercase",
+                  }}
+                >
+                  Build weekly shopping / prep list
+                </button>
+              </div>
+            )}
+
+            {mode === "eatout" && orders && (
+              <div style={{ ...card, marginBottom: 16 }}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                  Best orders at {venues.find((v) => v.id === eatVenueId).name}
+                </div>
+                <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 12 }}>
+                  Ranked by fit to your remaining macros ({remaining.p}P / {remaining.c}C / {remaining.f}F). Nutrition figures are approximate.
+                </div>
+                <div style={{ display: "grid", gap: 10 }}>
+                  {orders.map((o, i) => {
+                    const over = (v, tgt) => v > tgt * 1.05;
+                    return (
+                      <div key={i} style={{
+                        padding: "10px 12px", borderRadius: 10,
+                        border: `1.5px solid ${i === 0 ? C.green : C.line}`,
+                        background: i === 0 ? C.greenSoft : C.paper,
+                      }}>
+                        <div style={{ fontSize: 11, fontWeight: 800, color: i === 0 ? C.green : C.inkSoft, textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 4 }}>
+                          {i === 0 ? "Best fit" : `Option ${i + 1}`}
+                        </div>
+                        {(() => {
+                          const counts = {};
+                          o.combo.forEach((it) => (counts[it.name] = (counts[it.name] || 0) + 1));
+                          return Object.entries(counts).map(([name, ct], j) => (
+                            <div key={j} style={{ fontWeight: 600, fontSize: 14 }}>
+                              {ct > 1 ? `${ct}× ` : ""}{name}
+                            </div>
+                          ));
+                        })()}
+                        <div style={{ fontSize: 12, color: C.inkSoft, marginTop: 4, fontVariantNumeric: "tabular-nums" }}>
+                          <span style={{ color: over(o.totals.p, remaining.p) ? C.danger : C.inkSoft }}>{o.totals.p}P</span>
+                          {" / "}
+                          <span style={{ color: over(o.totals.c, remaining.c) ? C.danger : C.inkSoft }}>{o.totals.c}C</span>
+                          {" / "}
+                          <span style={{ color: over(o.totals.f, remaining.f) ? C.danger : C.inkSoft }}>{o.totals.f}F</span>
+                          {" · "}{kcalOf(o.totals)} kcal
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {prepList.length > 0 && (
+              <div style={card}>
+                <div style={{ fontFamily: "'Barlow Semi Condensed', sans-serif", fontWeight: 700, fontSize: 17, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 4 }}>
+                  Prep list
+                </div>
+                <div style={{ fontSize: 12, color: C.inkSoft, marginBottom: 10 }}>
+                  {mode === "week" ? "Total ingredient amounts to buy & batch-cook for the week." : "What to prep for today."}
+                </div>
+                <div style={{ display: "grid", gap: 6 }}>
+                  {prepList.map((it, i) => (
+                    <label key={i} style={{ display: "flex", gap: 10, alignItems: "flex-start", fontSize: 14, padding: "6px 4px", cursor: "pointer" }}>
+                      <input
+                        type="checkbox"
+                        checked={it.done}
+                        onChange={() => setPrepList((pl) => pl.map((x, j) => (j === i ? { ...x, done: !x.done } : x)))}
+                        style={{ width: 18, height: 18, accentColor: C.green, marginTop: 2 }}
+                      />
+                      <span style={{ textDecoration: it.done ? "line-through" : "none", color: it.done ? C.inkSoft : C.ink }}>
+                        <b>{it.label}</b> — {it.detail}
+                      </span>
+                    </label>
+                  ))}
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<MacroFit />);
+</script>
+</body>
+</html>
