@@ -1,0 +1,484 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>MacroFit</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#FAFAF7;color:#1C2321;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+.wrap{max-width:680px;margin:0 auto;padding:18px 14px 60px}
+h1{font-size:28px;margin:0;letter-spacing:-.5px;font-weight:800}
+h1 span{color:#2D5A3D}
+.sub{font-size:12px;color:#5A6660}
+.row{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:14px}
+.card{background:#fff;border:1px solid #E4E6E0;border-radius:14px;padding:15px;margin-bottom:14px}
+.tabs{display:flex;gap:6px;background:#fff;border:1px solid #E4E6E0;border-radius:12px;padding:5px;margin-bottom:18px}
+.tab{flex:1;padding:10px 0;border:0;border-radius:10px;background:transparent;color:#5A6660;font-size:14px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.tab.on{background:#1C2321;color:#FAFAF7}
+.pills{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
+.pill{padding:7px 14px;border-radius:999px;border:1.5px solid #E4E6E0;background:#fff;color:#5A6660;font-size:13px;font-weight:700}
+.pill.on{border-color:#2D5A3D;background:#EAF2ED;color:#2D5A3D}
+.pill.dash{border-style:dashed}
+.sect{font-size:16px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:10px}
+.hint{font-size:12px;color:#5A6660;margin-bottom:10px}
+input,select{padding:8px 10px;border:1px solid #E4E6E0;border-radius:8px;font-size:15px;background:#fff;color:#1C2321;font-family:inherit}
+input[type=number]{width:66px;text-align:center;font-weight:700}
+.lbl{font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;color:#5A6660;margin-bottom:3px}
+.flex{display:flex;gap:10px;flex-wrap:wrap;align-items:flex-end}
+.btn{border:0;border-radius:9px;padding:9px 14px;font-size:13px;font-weight:700;font-family:inherit}
+.btn.green{background:#2D5A3D;color:#fff}
+.btn.dark{background:#1C2321;color:#fff}
+.btn.ghost{background:transparent;border:1.5px solid #1C2321;color:#1C2321}
+.btn.out{background:transparent;border:1.5px solid #2D5A3D;color:#2D5A3D}
+.big{display:block;width:100%;padding:13px 0;font-size:16px;text-transform:uppercase;letter-spacing:.6px;margin-top:8px}
+.bar{height:10px;background:#E4E6E0;border-radius:6px;overflow:hidden;position:relative}
+.bar i{display:block;height:100%;border-radius:6px}
+.bar u{position:absolute;right:0;top:0;height:100%;background:#C0472E;opacity:.7}
+.mrow{display:flex;justify-content:space-between;font-size:12px;font-weight:700;margin-bottom:4px}
+.mb{margin-bottom:10px}
+.item{padding:10px 12px;border-radius:10px;border:1.5px solid #E4E6E0;background:#FAFAF7;margin-bottom:8px}
+.item.on{border-color:#2D5A3D;background:#EAF2ED}
+.item b{font-size:14px}
+.meta{font-size:11px;color:#5A6660;margin-top:3px}
+.lock{float:right;border:0;background:transparent;font-size:17px;padding:0 0 0 8px}
+.form{background:#EAF2ED;border-radius:10px;padding:12px;margin-bottom:12px}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#fff;border:1px solid #E4E6E0;border-radius:999px;padding:3px 9px;margin:0 6px 6px 0;font-size:12px}
+.chip button{border:0;background:transparent;color:#C0472E;font-weight:800;font-size:14px;padding:0}
+.chk{display:flex;gap:10px;align-items:flex-start;font-size:14px;padding:6px 2px}
+.chk input{width:18px;height:18px;accent-color:#2D5A3D;margin-top:2px}
+.done{text-decoration:line-through;color:#5A6660}
+.lib{padding:8px 10px;border-radius:8px;background:#FAFAF7;font-size:13px;margin-bottom:6px}
+.tag{font-size:11px;font-weight:800;text-transform:uppercase;letter-spacing:.6px;margin-bottom:3px}
+.right{margin-left:auto;text-align:right}
+.kcal{font-size:24px;font-weight:800}
+</style>
+</head>
+<body>
+<div class="wrap" id="root"></div>
+<script>
+/* ---------------- data ---------------- */
+var ING = {
+ chicken:{name:"Chicken breast",p:31,c:0,f:3.6},
+ rice:{name:"White rice (cooked)",p:2.7,c:28,f:.3},
+ broccoli:{name:"Broccoli",p:2.8,c:7,f:.4},
+ oil:{name:"Olive oil",p:0,c:0,f:100},
+ yogurt:{name:"Greek yogurt (0%)",p:10,c:3.6,f:.4},
+ berries:{name:"Mixed berries",p:.7,c:14,f:.3},
+ granola:{name:"Granola",p:10,c:60,f:15},
+ beef:{name:"Lean ground beef",p:26,c:0,f:8},
+ sweetpot:{name:"Sweet potato",p:1.6,c:20,f:.1},
+ eggwhite:{name:"Egg whites",p:11,c:.7,f:.2},
+ toast:{name:"Whole wheat bread",p:13,c:41,f:4},
+ salmon:{name:"Salmon",p:25,c:0,f:13},
+ quinoa:{name:"Quinoa (cooked)",p:4.4,c:21,f:1.9},
+ asparagus:{name:"Asparagus",p:2.2,c:3.9,f:.1},
+ oats:{name:"Oats (dry)",p:13,c:68,f:7},
+ whey:{name:"Whey protein",p:80,c:8,f:6},
+ pb:{name:"Peanut butter",p:25,c:20,f:50},
+ turkey:{name:"Ground turkey",p:27,c:0,f:8},
+ chilibase:{name:"Beans & tomato base",p:6,c:15,f:1},
+ shrimp:{name:"Shrimp",p:24,c:0,f:.3},
+ cottage:{name:"Cottage cheese",p:11,c:3.4,f:2.3},
+ pineapple:{name:"Pineapple",p:.5,c:13,f:.1},
+ banana:{name:"Banana",p:1.1,c:23,f:.3},
+ steak:{name:"Sirloin steak",p:29,c:0,f:10},
+ potato:{name:"Potatoes",p:2,c:17,f:.1},
+ greenbean:{name:"Green beans",p:1.8,c:7,f:.2},
+ tuna:{name:"Tuna (canned)",p:24,c:0,f:1},
+ wrap:{name:"Tortilla wrap",p:9,c:50,f:9}
+};
+var S = {
+ view:"coach", mode:"day", activeClientId:1, openDay:0,
+ plan:null, weekPlan:null, lockedIds:[], prepList:[], orders:null,
+ eatVenueId:"chipotle",
+ remaining:{p:45,c:60,f:20},
+ showAddClient:false, showAddIng:false, showAddMeal:false, showAddVenue:false, showAddItem:false,
+ newClient:{name:"",goal:"Cut",p:150,c:200,f:60,meals:4},
+ newIng:{name:"",p:0,c:0,f:0},
+ mealDraft:{name:"",tag:"Lunch/Dinner",parts:[]},
+ partSel:{key:"chicken",grams:100},
+ newVenueName:"",
+ newItem:{name:"",p:0,c:0,f:0},
+ ingKeys:Object.keys(ING),
+ clients:[
+  {id:1,name:"Jess M.",goal:"Cut",target:{p:150,c:160,f:55},meals:4},
+  {id:2,name:"Marcus T.",goal:"Lean bulk",target:{p:190,c:320,f:80},meals:5},
+  {id:3,name:"Priya K.",goal:"Recomp",target:{p:140,c:200,f:60},meals:4}
+ ],
+ meals:[
+  {id:1,name:"Chicken, rice & broccoli bowl",tag:"Lunch/Dinner",parts:[["chicken",150],["rice",200],["broccoli",100],["oil",8]]},
+  {id:2,name:"Greek yogurt bowl",tag:"Breakfast/Snack",parts:[["yogurt",250],["berries",100],["granola",40]]},
+  {id:3,name:"Beef & sweet potato skillet",tag:"Lunch/Dinner",parts:[["beef",140],["sweetpot",200],["oil",6]]},
+  {id:4,name:"Egg white scramble + toast",tag:"Breakfast",parts:[["eggwhite",250],["toast",70],["oil",6]]},
+  {id:5,name:"Salmon, quinoa & asparagus",tag:"Dinner",parts:[["salmon",140],["quinoa",160],["asparagus",120]]},
+  {id:6,name:"Protein oats",tag:"Breakfast",parts:[["oats",60],["whey",30],["pb",16],["banana",80]]},
+  {id:7,name:"Turkey chili",tag:"Lunch/Dinner",parts:[["turkey",130],["chilibase",220]]},
+  {id:8,name:"Shrimp stir-fry + rice",tag:"Dinner",parts:[["shrimp",150],["rice",190],["broccoli",90],["oil",8]]},
+  {id:9,name:"Cottage cheese + pineapple",tag:"Snack",parts:[["cottage",200],["pineapple",120]]},
+  {id:10,name:"Protein shake + banana",tag:"Snack",parts:[["whey",35],["banana",110]]},
+  {id:11,name:"Steak, potatoes & green beans",tag:"Dinner",parts:[["steak",150],["potato",220],["greenbean",100],["oil",6]]},
+  {id:12,name:"Tuna wrap",tag:"Lunch",parts:[["tuna",120],["wrap",65],["oil",5]]}
+ ],
+ venues:[
+  {id:"chipotle",name:"Chipotle",items:[
+   {name:"Chicken bowl (rice, beans, veg, salsa)",p:51,c:73,f:14},
+   {name:"Chicken salad bowl (no rice, guac)",p:47,c:26,f:27},
+   {name:"Steak bowl (rice, pinto, salsa)",p:40,c:74,f:15},
+   {name:"Sofritas bowl (rice, beans, veg)",p:24,c:82,f:17},
+   {name:"Side of chips",p:7,c:73,f:25}]},
+  {id:"chickfila",name:"Chick-fil-A",items:[
+   {name:"Grilled chicken sandwich",p:28,c:41,f:6},
+   {name:"12-ct grilled nuggets",p:38,c:2,f:8},
+   {name:"Market salad w/ grilled chicken",p:28,c:26,f:14},
+   {name:"Fruit cup",p:1,c:15,f:0},
+   {name:"Medium fries",p:5,c:45,f:24}]},
+  {id:"subway",name:"Subway",items:[
+   {name:'6" turkey breast (veggies)',p:18,c:40,f:4},
+   {name:"Footlong turkey breast",p:36,c:80,f:8},
+   {name:'6" rotisserie chicken',p:25,c:39,f:6},
+   {name:"Chopped chicken salad",p:24,c:12,f:5}]},
+  {id:"starbucks",name:"Starbucks",items:[
+   {name:"Egg white & pepper bites",p:20,c:13,f:13},
+   {name:"Eggs & cheddar protein box",p:23,c:40,f:19},
+   {name:"Turkey provolone sandwich",p:26,c:46,f:12},
+   {name:"Plain oatmeal",p:5,c:28,f:3}]},
+  {id:"mcd",name:"McDonald's",items:[
+   {name:"Egg McMuffin",p:17,c:30,f:13},
+   {name:"McDouble",p:22,c:33,f:20},
+   {name:"4-pc McNuggets",p:9,c:10,f:10},
+   {name:"Apple slices",p:0,c:4,f:0}]},
+  {id:"gas",name:"Convenience / on-the-go",items:[
+   {name:"Protein shake (26g)",p:26,c:5,f:3},
+   {name:"Beef jerky (1 oz)",p:11,c:3,f:1},
+   {name:"Greek yogurt cup",p:15,c:9,f:0},
+   {name:"String cheese",p:7,c:1,f:6},
+   {name:"Protein bar",p:20,c:23,f:7},
+   {name:"Tuna packet",p:16,c:0,f:1},
+   {name:"2 hard-boiled eggs",p:12,c:1,f:10},
+   {name:"Banana",p:1,c:27,f:0},
+   {name:"Almonds (1 oz)",p:6,c:6,f:14}]}
+ ]
+};
+var DAYS=["Mon","Tue","Wed","Thu","Fri","Sat","Sun"];
+function kc(m){return Math.round(m.p*4+m.c*4+m.f*9)}
+function esc(s){return String(s).replace(/&/g,"&amp;").replace(/</g,"&lt;").replace(/>/g,"&gt;").replace(/"/g,"&quot;")}
+function client(){for(var i=0;i<S.clients.length;i++){if(S.clients[i].id===S.activeClientId)return S.clients[i]}return S.clients[0]}
+function venue(){for(var i=0;i<S.venues.length;i++){if(S.venues[i].id===S.eatVenueId)return S.venues[i]}return S.venues[0]}
+
+/* ---------------- solver ---------------- */
+function buildItems(ms){return ms.map(function(m){return{meal:m,parts:m.parts.map(function(x){return{key:x[0],ing:ING[x[0]],base:x[1],grams:x[1]}})}})}
+function totalsOf(items){var a={p:0,c:0,f:0};items.forEach(function(it){it.parts.forEach(function(pt){a.p+=pt.ing.p*pt.grams/100;a.c+=pt.ing.c*pt.grams/100;a.f+=pt.ing.f*pt.grams/100})});return a}
+function mealMacros(it){return totalsOf([it])}
+function score(t,g){return Math.abs(t.p-g.p)/Math.max(g.p,1)*1.4+Math.abs(t.c-g.c)/Math.max(g.c,1)+Math.abs(t.f-g.f)/Math.max(g.f,1)}
+function solve(items,g,fixed){
+ for(var pass=0;pass<200;pass++){
+  var t=totalsOf(items);
+  var eP=(g.p-t.p)/Math.max(g.p,1),eC=(g.c-t.c)/Math.max(g.c,1),eF=(g.f-t.f)/Math.max(g.f,1);
+  if(Math.abs(eP)+Math.abs(eC)+Math.abs(eF)<0.01)break;
+  items.forEach(function(it){
+   if(fixed&&fixed.indexOf(it.meal.id)>=0)return;
+   it.parts.forEach(function(pt){
+    var push=(eP*1.4*pt.ing.p/100+eC*pt.ing.c/100+eF*pt.ing.f/100)*14;
+    pt.grams=Math.min(pt.base*2.5,Math.max(pt.base*0.4,pt.grams+push));
+   });
+  });
+ }
+ items.forEach(function(it){if(fixed&&fixed.indexOf(it.meal.id)>=0)return;it.parts.forEach(function(pt){pt.grams=Math.round(pt.grams/5)*5})});
+ return items;
+}
+function genDay(target,count,locked,pen){
+ locked=locked||[];pen=pen||{};
+ var lockIds=locked.map(function(l){return l.meal.id});
+ var pool=S.meals.filter(function(m){return lockIds.indexOf(m.id)<0});
+ var need=count-locked.length;
+ if(need<0)need=0;
+ var best=null;
+ for(var i=0;i<60;i++){
+  var sh=pool.slice().sort(function(){return Math.random()-.5});
+  var picks=sh.slice(0,need);
+  if(picks.length<need)break;
+  var items=locked.map(function(l){return{meal:l.meal,parts:l.parts.map(function(pt){return{key:pt.key,ing:pt.ing,base:pt.base,grams:pt.grams}})}}).concat(buildItems(picks));
+  solve(items,target,lockIds);
+  var t=totalsOf(items);
+  var vp=0;items.forEach(function(it){vp+=(pen[it.meal.id]||0)*0.015});
+  var sc=score(t,target)+vp;
+  if(!best||sc<best.score)best={score:sc,items:items,totals:{p:Math.round(t.p),c:Math.round(t.c),f:Math.round(t.f)}};
+ }
+ return best;
+}
+function genWeek(target,count){var pen={};return DAYS.map(function(){var d=genDay(target,count,[],pen);if(d)d.items.forEach(function(it){pen[it.meal.id]=(pen[it.meal.id]||0)+1});return d})}
+function aggWeek(week){var m={};week.forEach(function(d){if(!d)return;d.items.forEach(function(it){it.parts.forEach(function(pt){if(!m[pt.key])m[pt.key]={name:pt.ing.name,grams:0};m[pt.key].grams+=pt.grams})})});var o=[];for(var k in m)o.push(m[k]);return o.sort(function(a,b){return b.grams-a.grams})}
+function fg(g){return g>=1000?(g/1000).toFixed(2).replace(/0+$/,"").replace(/\.$/,"")+" kg":Math.round(g)+" g"}
+function findOrders(items,rem){
+ var combos=[],n=items.length;
+ for(var i=0;i<n;i++){combos.push([items[i]]);
+  for(var j=i;j<n;j++){combos.push([items[i],items[j]]);
+   for(var k=j;k<n;k++)combos.push([items[i],items[j],items[k]])}}
+ var sc=combos.map(function(c){
+  var t={p:0,c:0,f:0};c.forEach(function(x){t.p+=x.p;t.c+=x.c;t.f+=x.f});
+  function dev(v,tg,w){var d=(v-tg)/Math.max(tg,1);return (d>0?d*2.2:-d)*w}
+  return{combo:c,totals:t,score:dev(t.p,rem.p,1.4)+dev(t.c,rem.c,1)+dev(t.f,rem.f,1)}
+ });
+ sc.sort(function(a,b){return a.score-b.score});
+ var out=[],seen={};
+ for(var q=0;q<sc.length;q++){
+  var key=sc[q].combo.map(function(x){return x.name}).sort().join("|");
+  if(seen[key])continue;seen[key]=1;out.push(sc[q]);if(out.length===3)break;
+ }
+ return out;
+}
+
+/* ---------------- actions ---------------- */
+var app={};
+app.set=function(path,val,num){
+ var parts=path.split("."),o=S;
+ for(var i=0;i<parts.length-1;i++)o=o[parts[i]];
+ o[parts[parts.length-1]]=num?(parseFloat(val)||0):val;
+};
+app.setR=function(path,val,num){app.set(path,val,num);render()};
+app.view=function(v){S.view=v;render()};
+app.mode=function(m){S.mode=m;render()};
+app.toggle=function(k){S[k]=!S[k];render()};
+app.pickClient=function(id){S.activeClientId=id;S.plan=null;S.weekPlan=null;S.lockedIds=[];S.prepList=[];render()};
+app.target=function(k,v){client().target[k]=parseFloat(v)||0};
+app.mealsPerDay=function(v){var n=parseInt(v)||4;client().meals=Math.max(2,Math.min(6,n))};
+app.addClient=function(){
+ var n=S.newClient;if(!n.name.trim())return;
+ var id=Date.now();
+ S.clients.push({id:id,name:n.name.trim(),goal:n.goal,target:{p:n.p,c:n.c,f:n.f},meals:n.meals});
+ S.activeClientId=id;S.plan=null;S.weekPlan=null;S.prepList=[];S.showAddClient=false;
+ S.newClient={name:"",goal:"Cut",p:150,c:200,f:60,meals:4};render();
+};
+app.addIng=function(){
+ var n=S.newIng;if(!n.name.trim())return;
+ var key="c"+Date.now();ING[key]={name:n.name.trim(),p:n.p,c:n.c,f:n.f};
+ S.ingKeys.push(key);S.partSel.key=key;S.newIng={name:"",p:0,c:0,f:0};
+ S.showAddIng=false;S.showAddMeal=true;render();
+};
+app.addPart=function(){
+ if(S.partSel.grams<=0)return;
+ S.mealDraft.parts.push([S.partSel.key,S.partSel.grams]);render();
+};
+app.rmPart=function(i){S.mealDraft.parts.splice(i,1);render()};
+app.addMeal=function(){
+ var d=S.mealDraft;if(!d.name.trim()||!d.parts.length)return;
+ S.meals.push({id:Date.now(),name:d.name.trim(),tag:d.tag,parts:d.parts.slice()});
+ S.mealDraft={name:"",tag:"Lunch/Dinner",parts:[]};S.showAddMeal=false;render();
+};
+app.genDay=function(){
+ var locked=[];
+ if(S.plan)locked=S.plan.items.filter(function(it){return S.lockedIds.indexOf(it.meal.id)>=0});
+ S.plan=genDay(client().target,client().meals,locked);render();
+};
+app.genWeek=function(){S.weekPlan=genWeek(client().target,client().meals);S.openDay=0;render()};
+app.lock=function(id){var i=S.lockedIds.indexOf(id);if(i>=0)S.lockedIds.splice(i,1);else S.lockedIds.push(id);render()};
+app.openDay=function(i){S.openDay=i;render()};
+app.prepDay=function(){
+ if(!S.plan)return;
+ S.prepList=S.plan.items.map(function(it){
+  return{label:it.meal.name,detail:it.parts.map(function(pt){return pt.ing.name+" "+fg(pt.grams)}).join(", "),done:false}});
+ render();
+};
+app.prepWeek=function(){
+ if(!S.weekPlan)return;
+ S.prepList=aggWeek(S.weekPlan).map(function(r){return{label:r.name,detail:fg(r.grams)+" for the week",done:false}});
+ render();
+};
+app.check=function(i){S.prepList[i].done=!S.prepList[i].done;render()};
+app.pickVenue=function(id){S.eatVenueId=id;S.orders=null;S.showAddItem=false;render()};
+app.addVenue=function(){
+ if(!S.newVenueName.trim())return;
+ var id="v"+Date.now();
+ S.venues.push({id:id,name:S.newVenueName.trim(),items:[]});
+ S.eatVenueId=id;S.newVenueName="";S.showAddVenue=false;S.showAddItem=true;S.orders=null;render();
+};
+app.addItem=function(){
+ var n=S.newItem;if(!n.name.trim())return;
+ venue().items.push({name:n.name.trim(),p:n.p,c:n.c,f:n.f});
+ S.newItem={name:"",p:0,c:0,f:0};S.orders=null;render();
+};
+app.fullDay=function(){var t=client().target;S.remaining={p:t.p,c:t.c,f:t.f};render()};
+app.findOrder=function(){var v=venue();if(!v.items.length)return;S.orders=findOrders(v.items,S.remaining);render()};
+
+/* ---------------- render ---------------- */
+function bar(label,val,tgt,col){
+ var pct=Math.min(115,val/Math.max(tgt,1)*100),off=val-tgt;
+ var ok=Math.abs(off)/Math.max(tgt,1)<=0.05;
+ var oc=ok?"#2D5A3D":(Math.abs(off)>tgt*0.1?"#C0472E":"#5A6660");
+ return '<div class="mb"><div class="mrow"><span>'+label+'</span><span style="color:'+(ok?"#2D5A3D":"#5A6660")+'">'+val+'g / '+tgt+'g <span style="color:'+oc+'">('+(off>=0?"+":"")+off+'g)</span></span></div>'+
+ '<div class="bar"><i style="width:'+Math.min(pct,100)+'%;background:'+col+'"></i>'+(pct>100?'<u style="width:'+(pct-100)+'%"></u>':'')+'</div></div>';
+}
+function num(path,val,w){return '<input type="number" value="'+val+'" style="width:'+(w||66)+'px" oninput="app.set(\''+path+'\',this.value,1)">'}
+function mealCard(it,lockable){
+ var mm=mealMacros(it),locked=S.lockedIds.indexOf(it.meal.id)>=0;
+ var h='<div class="item'+(lockable&&locked?" on":"")+'">';
+ if(lockable)h+='<button class="lock" onclick="app.lock('+it.meal.id+')">'+(locked?"&#128274;":"&#128275;")+'</button>';
+ h+='<b>'+esc(it.meal.name)+'</b><div style="font-size:12px;margin-top:3px">'+
+ it.parts.map(function(pt){return esc(pt.ing.name)+' <b>'+fg(pt.grams)+'</b>'}).join(" &middot; ")+'</div>'+
+ '<div class="meta">'+Math.round(mm.p)+'P / '+Math.round(mm.c)+'C / '+Math.round(mm.f)+'F &middot; '+kc(mm)+' kcal</div></div>';
+ return h;
+}
+function coachView(){
+ var c=client(),h="";
+ h+='<div class="pills">';
+ S.clients.forEach(function(x){h+='<button class="pill'+(x.id===S.activeClientId?" on":"")+'" onclick="app.pickClient('+x.id+')">'+esc(x.name)+' &middot; '+esc(x.goal)+'</button>'});
+ h+='<button class="pill dash'+(S.showAddClient?" on":"")+'" onclick="app.toggle(\'showAddClient\')">'+(S.showAddClient?"Cancel":"+ New client")+'</button></div>';
+ if(S.showAddClient){
+  var n=S.newClient;
+  h+='<div class="card" style="background:#EAF2ED;border-color:#2D5A3D"><div class="sect">New client</div><div class="flex">'+
+  '<div style="flex:1 1 140px"><div class="lbl">Name</div><input style="width:100%" value="'+esc(n.name)+'" oninput="app.set(\'newClient.name\',this.value)"></div>'+
+  '<div><div class="lbl">Goal</div><select onchange="app.set(\'newClient.goal\',this.value)">'+
+  ["Cut","Lean bulk","Recomp","Maintain"].map(function(g){return '<option'+(g===n.goal?" selected":"")+'>'+g+'</option>'}).join("")+'</select></div>'+
+  '<div><div class="lbl">Protein</div>'+num("newClient.p",n.p,58)+'</div>'+
+  '<div><div class="lbl">Carbs</div>'+num("newClient.c",n.c,58)+'</div>'+
+  '<div><div class="lbl">Fat</div>'+num("newClient.f",n.f,58)+'</div>'+
+  '<div><div class="lbl">Meals</div>'+num("newClient.meals",n.meals,52)+'</div>'+
+  '<button class="btn green" onclick="app.addClient()">Add client</button></div></div>';
+ }
+ h+='<div class="card"><div class="sect">Daily targets &mdash; '+esc(c.name)+'</div><div class="flex">'+
+ '<div><div class="lbl" style="color:#2D5A3D">Protein (g)</div><input type="number" value="'+c.target.p+'" oninput="app.target(\'p\',this.value)"></div>'+
+ '<div><div class="lbl" style="color:#B8890B">Carbs (g)</div><input type="number" value="'+c.target.c+'" oninput="app.target(\'c\',this.value)"></div>'+
+ '<div><div class="lbl" style="color:#7A6FB0">Fat (g)</div><input type="number" value="'+c.target.f+'" oninput="app.target(\'f\',this.value)"></div>'+
+ '<div><div class="lbl">Meals/day</div><input type="number" style="width:56px" value="'+c.meals+'" oninput="app.mealsPerDay(this.value)"></div>'+
+ '<div class="right"><div class="lbl">&#8776; calories</div><div class="kcal">'+kc(c.target)+'</div></div></div>'+
+ '<div class="hint" style="margin-top:10px;margin-bottom:0">Change these, then generate in Client view &mdash; amounts rescale to fit.</div></div>';
+
+ h+='<div class="card"><div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">'+
+ '<div class="sect" style="margin:0">Meal library ('+S.meals.length+')</div><div style="display:flex;gap:6px">'+
+ '<button class="btn out" onclick="app.toggle(\'showAddIng\')">+ Ingredient</button>'+
+ '<button class="btn green" onclick="app.toggle(\'showAddMeal\')">+ Meal</button></div></div>';
+ if(S.showAddIng){
+  var g=S.newIng;
+  h+='<div class="form"><div class="tag">New ingredient &mdash; per 100g</div><div class="flex">'+
+  '<input style="flex:1 1 150px" placeholder="Ingredient name" value="'+esc(g.name)+'" oninput="app.set(\'newIng.name\',this.value)">'+
+  '<div><div class="lbl">Protein</div>'+num("newIng.p",g.p,56)+'</div>'+
+  '<div><div class="lbl">Carbs</div>'+num("newIng.c",g.c,56)+'</div>'+
+  '<div><div class="lbl">Fat</div>'+num("newIng.f",g.f,56)+'</div>'+
+  '<button class="btn dark" onclick="app.addIng()">Save</button></div></div>';
+ }
+ if(S.showAddMeal){
+  var d=S.mealDraft;
+  h+='<div class="form"><div class="tag">New meal &mdash; build from ingredients</div><div class="flex" style="margin-bottom:10px">'+
+  '<input style="flex:1 1 150px" placeholder="Meal name" value="'+esc(d.name)+'" oninput="app.set(\'mealDraft.name\',this.value)">'+
+  '<select onchange="app.set(\'mealDraft.tag\',this.value)">'+["Breakfast","Lunch","Dinner","Lunch/Dinner","Snack"].map(function(t){return '<option'+(t===d.tag?" selected":"")+'>'+t+'</option>'}).join("")+'</select></div>'+
+  '<div class="flex" style="margin-bottom:8px"><select style="flex:1 1 150px" onchange="app.set(\'partSel.key\',this.value)">'+
+  S.ingKeys.map(function(k){return '<option value="'+k+'"'+(k===S.partSel.key?" selected":"")+'>'+esc(ING[k].name)+'</option>'}).join("")+'</select>'+
+  '<div><div class="lbl">Grams</div>'+num("partSel.grams",S.partSel.grams,64)+'</div>'+
+  '<button class="btn ghost" onclick="app.addPart()">Add</button></div>';
+  if(d.parts.length){
+   var mm=mealMacros(buildItems([{id:0,name:"",tag:"",parts:d.parts}])[0]);
+   h+='<div style="margin-bottom:8px">';
+   d.parts.forEach(function(p,i){h+='<span class="chip">'+esc(ING[p[0]].name)+' '+p[1]+'g<button onclick="app.rmPart('+i+')">&times;</button></span>'});
+   h+='<div class="meta">Base: '+Math.round(mm.p)+'P / '+Math.round(mm.c)+'C / '+Math.round(mm.f)+'F &middot; '+kc(mm)+' kcal</div></div>';
+  }
+  h+='<button class="btn dark" onclick="app.addMeal()">Save meal</button></div>';
+ }
+ S.meals.forEach(function(m){
+  var mm=mealMacros(buildItems([m])[0]);
+  h+='<div class="lib"><b>'+esc(m.name)+'</b><div class="meta">'+m.parts.map(function(p){return esc(ING[p[0]].name)+" "+p[1]+"g"}).join(" &middot; ")+'</div>'+
+  '<div class="meta">base: '+Math.round(mm.p)+'P / '+Math.round(mm.c)+'C / '+Math.round(mm.f)+'F</div></div>';
+ });
+ h+='</div>';
+ return h;
+}
+function clientView(){
+ var c=client(),h="";
+ h+='<div class="card"><div class="row" style="margin-bottom:4px"><div style="font-size:21px;font-weight:800">Hey '+esc(c.name.split(" ")[0])+'</div>'+
+ '<span class="sub">'+esc(c.goal)+' &middot; '+kc(c.target)+' kcal/day</span></div>'+
+ '<div class="pills" style="margin:10px 0 14px">'+
+ '<button class="pill'+(S.mode==="day"?" on":"")+'" onclick="app.mode(\'day\')">Today</button>'+
+ '<button class="pill'+(S.mode==="week"?" on":"")+'" onclick="app.mode(\'week\')">Full week</button>'+
+ '<button class="pill'+(S.mode==="eatout"?" on":"")+'" onclick="app.mode(\'eatout\')">Eating out</button></div>';
+
+ if(S.mode==="day"){
+  var t=S.plan?S.plan.totals:{p:0,c:0,f:0};
+  h+=bar("Protein",t.p,c.target.p,"#2D5A3D")+bar("Carbs",t.c,c.target.c,"#F2B705")+bar("Fat",t.f,c.target.f,"#7A6FB0");
+  h+='<button class="btn green big" onclick="app.genDay()">'+(S.plan?"Shuffle unlocked":"Generate my day")+'</button>';
+ }
+ if(S.mode==="week"){
+  var a={p:0,c:0,f:0};
+  if(S.weekPlan){S.weekPlan.forEach(function(d){if(d){a.p+=d.totals.p;a.c+=d.totals.c;a.f+=d.totals.f}});a={p:Math.round(a.p/7),c:Math.round(a.c/7),f:Math.round(a.f/7)}}
+  h+=bar("Protein (avg)",a.p,c.target.p,"#2D5A3D")+bar("Carbs (avg)",a.c,c.target.c,"#F2B705")+bar("Fat (avg)",a.f,c.target.f,"#7A6FB0");
+  h+='<button class="btn green big" onclick="app.genWeek()">'+(S.weekPlan?"Regenerate week":"Generate my week")+'</button>';
+ }
+ if(S.mode==="eatout"){
+  h+='<div class="hint">Where are you, and what do you have left today?</div><div class="pills">';
+  S.venues.forEach(function(v){h+='<button class="pill'+(v.id===S.eatVenueId?" on":"")+'" onclick="app.pickVenue(\''+v.id+'\')">'+esc(v.name)+'</button>'});
+  h+='<button class="pill dash'+(S.showAddVenue?" on":"")+'" onclick="app.toggle(\'showAddVenue\')">'+(S.showAddVenue?"Cancel":"+ Add place")+'</button></div>';
+  if(S.showAddVenue){
+   h+='<div class="form"><div class="flex"><input style="flex:1 1 170px" placeholder="Place name" value="'+esc(S.newVenueName)+'" oninput="app.set(\'newVenueName\',this.value)">'+
+   '<button class="btn green" onclick="app.addVenue()">Save place</button></div></div>';
+  }
+  var v=venue();
+  h+='<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">'+
+  '<span class="sub"><b>'+esc(v.name)+'</b>: '+v.items.length+' option'+(v.items.length===1?"":"s")+'</span>'+
+  '<button class="btn out" onclick="app.toggle(\'showAddItem\')">'+(S.showAddItem?"Close":"+ Add option")+'</button></div>';
+  if(S.showAddItem){
+   var ni=S.newItem;
+   h+='<div class="form"><div class="flex"><input style="flex:1 1 160px" placeholder="Menu item" value="'+esc(ni.name)+'" oninput="app.set(\'newItem.name\',this.value)">'+
+   '<div><div class="lbl">Protein</div>'+num("newItem.p",ni.p,56)+'</div>'+
+   '<div><div class="lbl">Carbs</div>'+num("newItem.c",ni.c,56)+'</div>'+
+   '<div><div class="lbl">Fat</div>'+num("newItem.f",ni.f,56)+'</div>'+
+   '<button class="btn dark" onclick="app.addItem()">Save option</button></div></div>';
+  }
+  h+='<div class="flex" style="margin-bottom:12px">'+
+  '<div><div class="lbl" style="color:#2D5A3D">Protein left</div>'+num("remaining.p",S.remaining.p,58)+'</div>'+
+  '<div><div class="lbl" style="color:#B8890B">Carbs left</div>'+num("remaining.c",S.remaining.c,58)+'</div>'+
+  '<div><div class="lbl" style="color:#7A6FB0">Fat left</div>'+num("remaining.f",S.remaining.f,58)+'</div>'+
+  '<button class="btn ghost" onclick="app.fullDay()">Use full day</button></div>'+
+  '<button class="btn green big" onclick="app.findOrder()">Find my order</button>';
+ }
+ h+='</div>';
+
+ if(S.mode==="day"&&S.plan){
+  h+='<div class="card"><div class="sect">Today\'s plan</div><div class="hint">Amounts scaled to your targets. Lock what you like, shuffle the rest.</div>';
+  S.plan.items.forEach(function(it){h+=mealCard(it,true)});
+  h+='<button class="btn ghost big" onclick="app.prepDay()">Send to prep list</button></div>';
+ }
+ if(S.mode==="week"&&S.weekPlan){
+  h+='<div class="card"><div class="sect">This week</div><div class="pills">';
+  DAYS.forEach(function(d,i){h+='<button class="pill'+(i===S.openDay?" on":"")+'" onclick="app.openDay('+i+')">'+d+'</button>'});
+  h+='</div>';
+  var day=S.weekPlan[S.openDay];
+  if(day){
+   h+='<div class="hint">'+DAYS[S.openDay]+': '+day.totals.p+'P / '+day.totals.c+'C / '+day.totals.f+'F &middot; '+kc(day.totals)+' kcal</div>';
+   day.items.forEach(function(it){h+=mealCard(it,false)});
+  }
+  h+='<button class="btn ghost big" onclick="app.prepWeek()">Build weekly prep list</button></div>';
+ }
+ if(S.mode==="eatout"&&S.orders){
+  h+='<div class="card"><div class="sect">Best orders at '+esc(venue().name)+'</div>'+
+  '<div class="hint">Ranked against '+S.remaining.p+'P / '+S.remaining.c+'C / '+S.remaining.f+'F left. Figures approximate.</div>';
+  S.orders.forEach(function(o,i){
+   var counts={};o.combo.forEach(function(x){counts[x.name]=(counts[x.name]||0)+1});
+   h+='<div class="item'+(i===0?" on":"")+'"><div class="tag" style="color:'+(i===0?"#2D5A3D":"#5A6660")+'">'+(i===0?"Best fit":"Option "+(i+1))+'</div>';
+   for(var k in counts)h+='<b>'+(counts[k]>1?counts[k]+"&times; ":"")+esc(k)+'</b><br>';
+   function ov(v,t){return v>t*1.05?"#C0472E":"#5A6660"}
+   h+='<div class="meta"><span style="color:'+ov(o.totals.p,S.remaining.p)+'">'+o.totals.p+'P</span> / '+
+   '<span style="color:'+ov(o.totals.c,S.remaining.c)+'">'+o.totals.c+'C</span> / '+
+   '<span style="color:'+ov(o.totals.f,S.remaining.f)+'">'+o.totals.f+'F</span> &middot; '+kc(o.totals)+' kcal</div></div>';
+  });
+  h+='</div>';
+ }
+ if(S.prepList.length){
+  h+='<div class="card"><div class="sect">Prep list</div>';
+  S.prepList.forEach(function(it,i){
+   h+='<label class="chk"><input type="checkbox"'+(it.done?" checked":"")+' onchange="app.check('+i+')">'+
+   '<span class="'+(it.done?"done":"")+'"><b>'+esc(it.label)+'</b> &mdash; '+esc(it.detail)+'</span></label>';
+  });
+  h+='</div>';
+ }
+ return h;
+}
+function render(){
+ var h='<div class="row"><h1>Macro<span>Fit</span></h1><span class="sub">prototype</span></div>'+
+ '<div class="tabs"><button class="tab'+(S.view==="coach"?" on":"")+'" onclick="app.view(\'coach\')">Coach view</button>'+
+ '<button class="tab'+(S.view==="client"?" on":"")+'" onclick="app.view(\'client\')">Client view</button></div>';
+ h+= S.view==="coach"?coachView():clientView();
+ document.getElementById("root").innerHTML=h;
+}
+render();
+</script>
+</body>
+</html>
